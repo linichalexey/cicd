@@ -27,16 +27,42 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup environment
-        run: echo "Setting up linting environment"
+      - name: Cache composer
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-composer-modules
+        with:
+          # composer cache files are stored in ./vendor dir
+          path: ./vendor
+          key: composer-build-${{ hashFiles('./composer.lock') }}
+          restore-keys: |
+            composer-after-build-${{ hashFiles('./composer.lock') }}
+            composer-build-${{ hashFiles('./composer.lock') }}
 
-      - name: Run linters
+      - name: Install dependencies
         run: |
-          echo "Running code linters"
-          echo "Running style checks"
+          update-alternatives --list php
+          php --version
+          sudo update-alternatives --set php /usr/bin/php8.3
+          composer install --dev
 
-      - name: Run security scans
-        run: echo "Running security vulnerability scans"
+      - name: Run phpcs with Drupal coding standards.
+        run: >
+          ./vendor/bin/phpcs \
+          --standard="Drupal,DrupalPractice" -n \
+          --extensions="php,module,inc,install,test,profile,theme" \
+          docroot/modules/custom
+
+      - name: Update Cache
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-composer-modules
+        with:
+          # composer cache files are stored in ./vendor dir
+          path: ./vendor
+          key: composer-after-build-${{ hashFiles('./composer.lock') }}
+          restore-keys: |
+            composer-after-build-${{ hashFiles('./composer.lock') }}
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
