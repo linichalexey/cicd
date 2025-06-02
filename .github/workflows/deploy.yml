@@ -14,9 +14,9 @@ on:
           - stg
           - prod
   push:
-    branches: [ main, master ]
+    branches: [ main, dev ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, dev ]
   schedule:
     - cron: '0 0 * * 1' # Runs at 00:00 on Monday
 
@@ -51,12 +51,12 @@ jobs:
           echo "Running unit tests"
           # Your unit test commands here
 
-      - name: Upload test results
-        uses: actions/upload-artifact@v3
-        with:
-          name: unit-test-results
-          path: test-results/
-          if-no-files-found: ignore
+#      - name: Upload test results
+#        uses: actions/upload-artifact@v3
+#        with:
+#          name: unit-test-results
+#          path: test-results/
+#          if-no-files-found: ignore
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -71,12 +71,12 @@ jobs:
           echo "Running integration tests"
           # Your integration test commands here
 
-      - name: Upload test results
-        uses: actions/upload-artifact@v3
-        with:
-          name: integration-test-results
-          path: integration-results/
-          if-no-files-found: ignore
+#      - name: Upload test results
+#        uses: actions/upload-artifact@v3
+#        with:
+#          name: integration-test-results
+#          path: integration-results/
+#          if-no-files-found: ignore
   build:
     name: Build Artifacts
     needs: [lint, unit-tests, integration-tests]
