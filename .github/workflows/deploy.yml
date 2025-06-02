@@ -46,17 +46,16 @@ jobs:
           sudo update-alternatives --set php /usr/bin/php8.3
           composer install --dev
 
-      - name: Check if custom modules directory exists
-        id: check_dir
-        run: echo "::set-output name=custom_modules_exist::$(test -d docroot/modules/custom && echo 'true' || echo 'false')"
-
-      - name: Run phpcs with Drupal coding standards
-        if: steps.check_dir.outputs.custom_modules_exist == 'true'
-        run: >
-          ./vendor/bin/phpcs \
-          --standard="Drupal,DrupalPractice" -n \
-          --extensions="php,module,inc,install,test,profile,theme" \
-          docroot/modules/custom
+      - name: Run phpcs with Drupal coding standards.
+        run: |
+          if [ -d "docroot/modules/custom" ]; then
+            ./vendor/bin/phpcs \
+            --standard="Drupal,DrupalPractice" -n \
+            --extensions="php,module,inc,install,test,profile,theme" \
+            docroot/modules/custom
+          else
+            echo "Directory docroot/modules/custom does not exist. Skipping PHPCS."
+          fi
 
       - name: Update Cache
         uses: actions/cache@v4
@@ -82,12 +81,12 @@ jobs:
           echo "Running unit tests"
           # Your unit test commands here
 
-#      - name: Upload test results
-#        uses: actions/upload-artifact@v3
-#        with:
-#          name: unit-test-results
-#          path: test-results/
-#          if-no-files-found: ignore
+  #      - name: Upload test results
+  #        uses: actions/upload-artifact@v3
+  #        with:
+  #          name: unit-test-results
+  #          path: test-results/
+  #          if-no-files-found: ignore
   integration-tests:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -102,15 +101,15 @@ jobs:
           echo "Running integration tests"
           # Your integration test commands here
 
-#      - name: Upload test results
-#        uses: actions/upload-artifact@v3
-#        with:
-#          name: integration-test-results
-#          path: integration-results/
-#          if-no-files-found: ignore
+  #      - name: Upload test results
+  #        uses: actions/upload-artifact@v3
+  #        with:
+  #          name: integration-test-results
+  #          path: integration-results/
+  #          if-no-files-found: ignore
   build:
     name: Build Artifacts
-    needs: [lint, unit-tests, integration-tests]
+    needs: [ lint, unit-tests, integration-tests ]
     runs-on: ubuntu-latest
 
     steps:
