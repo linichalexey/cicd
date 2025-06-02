@@ -46,7 +46,12 @@ jobs:
           sudo update-alternatives --set php /usr/bin/php8.3
           composer install --dev
 
-      - name: Run phpcs with Drupal coding standards.
+      - name: Check if custom modules directory exists
+        id: check_dir
+        run: echo "::set-output name=custom_modules_exist::$(test -d docroot/modules/custom && echo 'true' || echo 'false')"
+
+      - name: Run phpcs with Drupal coding standards
+        if: steps.check_dir.outputs.custom_modules_exist == 'true'
         run: >
           ./vendor/bin/phpcs \
           --standard="Drupal,DrupalPractice" -n \
