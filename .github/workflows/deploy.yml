@@ -1,0 +1,44 @@
+# .github/workflows/main.yml
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - dev
+          - stg
+          - prod
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  schedule:
+    - cron: '0 0 * * 1' # Runs at 00:00 on Monday
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up environment
+        run: |
+          echo "Setting up environment"
+          echo "Triggered by: ${{ github.event_name }}"
+
+      - name: Display manual parameters
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Environment: ${{ github.event.inputs.environment }}"
+
+      - name: Build project
+        run: echo "Building the project"
+
+      - name: Run tests
+        run: echo "Running tests"

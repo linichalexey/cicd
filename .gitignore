@@ -1,0 +1,10 @@
+.idea
+.env
+docker-compose.override.yml
+vendor
+
+web/core
+web/modules/contrib
+web/themes/contrib
+web/sites/*/files
+web/sites/*/settings*
