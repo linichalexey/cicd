@@ -207,23 +207,24 @@ jobs:
           name: drupal-build-${{ env.BUILD_ID }}
           path: drupal-build/
           retention-days: 14
-#
-#      - name: Setup build environment
-#        run: |
-#          echo "Setting up environment"
-#          echo "Triggered by: ${{ github.event_name }}"
-#
-#      - name: Display manual parameters
-#        if: github.event_name == 'workflow_dispatch'
-#        run: |
-#          echo "Environment: ${{ github.event.inputs.environment }}"
-#
-#      - name: Build project
-#        run: echo "Building the project"
 
-#      - name: Upload build artifacts
-#        uses: actions/upload-artifact@v3
-#        with:
-#          name: build-artifacts
-#          path: dist/
-#          if-no-files-found: error
+      - name: Store deployment archive
+        uses: actions/upload-artifact@v4  # Updated to v4
+        with:
+          name: drupal-deploy-archive-${{ env.BUILD_ID }}
+          path: drupal-deploy-${{ env.BUILD_ID }}.tar.gz
+          retention-days: 14
+
+      - name: Build summary
+        run: |
+          echo "## 🚀 Drupal Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Attribute | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Build ID** | ${{ env.BUILD_ID }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Built from** | ${{ github.ref_name }} @ ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Complete Build**: drupal-build-${{ env.BUILD_ID }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployment Archive**: drupal-deploy-archive-${{ env.BUILD_ID }}" >> $GITHUB_STEP_SUMMARY
