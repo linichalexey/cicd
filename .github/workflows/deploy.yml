@@ -180,6 +180,33 @@ jobs:
           echo "Build timestamp: $(date)" > build-info/build.txt
           echo "Commit: ${{ github.sha }}" >> build-info/build.txt
           echo "Branch: ${{ github.ref_name }}" >> build-info/build.txt
+
+      - name: Create deployment package
+        run: |
+          # Create a directory for the artifact
+          mkdir -p drupal-build
+
+          # Copy all files to the artifact directory, excluding development files
+          rsync -av --progress ./ drupal-build/ \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude="node_modules" \
+            --exclude=".gitignore" \
+            --exclude=".env.example" \
+            --exclude="README.md"
+
+          # Copy build info
+          cp build-info/build.txt drupal-build/
+
+          # Create a compressed archive for AWS deployment
+          tar -czf drupal-deploy-${{ env.BUILD_ID }}.tar.gz -C drupal-build .
+
+      - name: Store build as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: drupal-build-${{ env.BUILD_ID }}
+          path: drupal-build/
+          retention-days: 14
 #
 #      - name: Setup build environment
 #        run: |
