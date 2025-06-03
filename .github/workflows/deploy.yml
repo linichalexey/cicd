@@ -202,7 +202,7 @@ jobs:
           tar -czf drupal-deploy-${{ env.BUILD_ID }}.tar.gz -C drupal-build .
 
       - name: Store build as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: drupal-build-${{ env.BUILD_ID }}
           path: drupal-build/
