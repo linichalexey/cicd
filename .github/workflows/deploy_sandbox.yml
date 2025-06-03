@@ -1,0 +1,242 @@
+# .github/workflows/main.yml
+name: Deploy (sandbox)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - dev
+          - stg
+          - prod
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+  schedule:
+    - cron: '0 0 * * 1' # Runs at 00:00 on Monday
+
+jobs:
+  lint:
+    name: Lint and Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Cache composer
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-composer-modules
+        with:
+          # composer cache files are stored in ./vendor dir
+          path: ./vendor
+          key: composer-build-${{ hashFiles('./composer.lock') }}
+          restore-keys: |
+            composer-after-build-${{ hashFiles('./composer.lock') }}
+            composer-build-${{ hashFiles('./composer.lock') }}
+
+      - name: Install dependencies
+        run: |
+          update-alternatives --list php
+          php --version
+          sudo update-alternatives --set php /usr/bin/php8.3
+          composer install --dev
+
+      - name: Run phpcs with Drupal coding standards.
+        run: |
+          if [ -d "docroot/modules/custom" ]; then
+            ./vendor/bin/phpcs \
+            --standard="Drupal,DrupalPractice" -n \
+            --extensions="php,module,inc,install,test,profile,theme" \
+            docroot/modules/custom
+          else
+            echo "Directory docroot/modules/custom does not exist. Skipping PHPCS."
+          fi
+
+      - name: Update Cache
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-composer-modules
+        with:
+          # composer cache files are stored in ./vendor dir
+          path: ./vendor
+          key: composer-after-build-${{ hashFiles('./composer.lock') }}
+          restore-keys: |
+            composer-after-build-${{ hashFiles('./composer.lock') }}
+  audit:
+    name: Composer audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Cache composer
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-composer-modules
+        with:
+          # composer cache files are stored in ./vendor dir
+          path: ./vendor
+          key: composer-build-${{ hashFiles('./composer.lock') }}
+          restore-keys: |
+            composer-after-build-${{ hashFiles('./composer.lock') }}
+            composer-build-${{ hashFiles('./composer.lock') }}
+
+      - name: Install dependencies
+        run: |
+          update-alternatives --list php
+          php --version
+          sudo update-alternatives --set php /usr/bin/php8.3
+          composer install --dev
+
+      - name: Run Audit
+        id: audit
+        env:
+          TEST_STATUS: 0
+        run: |
+          AUDIT_OUTPUT=$(composer audit 2>&1) || echo "TEST_STATUS=1" >> $GITHUB_ENV
+          echo "$AUDIT_OUTPUT"
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "result<<$EOF" >> $GITHUB_OUTPUT
+          echo "$AUDIT_OUTPUT" >> "$GITHUB_OUTPUT"
+          echo "$EOF" >> $GITHUB_OUTPUT
+
+      - name: "Audit status"
+        env:
+          TEST_STATUS: ${{ env.TEST_STATUS }}
+          AUDIT_OUTPUT: ${{ steps.audit.outputs.result }}
+          TEAMS_WEBHOOK_URL: ${{vars.TEAMS_WEBHOOK_URL}}
+        run: |
+          echo "Audit Output"
+          echo "$AUDIT_OUTPUT"
+          TEST_STATUS_TEXT="Needs Update"
+          OUTPUT="AUDIT \n\n $AUDIT_OUTPUT"
+          [[ $TEST_STATUS -eq 0 ]] && TEST_STATUS_TEXT="successful" && echo "TEST_STATUS_TEXT=successful"
+          echo "TEST_STATUS=$TEST_STATUS TEST_STATUS_TEXT=$TEST_STATUS_TEXT"
+          echo "TESTS Status $TEST_STATUS:$TEST_STATUS_TEXT!"
+
+      - name: Update Cache
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-composer-modules
+        with:
+          # composer cache files are stored in ./vendor dir
+          path: ./vendor
+          key: composer-after-build-${{ hashFiles('./composer.lock') }}
+          restore-keys: |
+            composer-after-build-${{ hashFiles('./composer.lock') }}
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup test environment
+        run: echo "Setting up test environment"
+
+      - name: Run unit tests
+        run: |
+          echo "Pretend to run unit tests"
+          sleep 10
+
+  build:
+    name: Build Artifacts
+    needs: [ lint, audit, unit-tests ]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, ctype, gd, opcache, mysql, zip
+          tools: composer:v2
+
+      - name: Cache composer
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-composer-modules
+        with:
+          # composer cache files are stored in ./vendor dir
+          path: ./vendor
+          key: composer-build-${{ hashFiles('./composer.lock') }}
+          restore-keys: |
+            composer-after-build-${{ hashFiles('./composer.lock') }}
+            composer-build-${{ hashFiles('./composer.lock') }}
+
+      - name: Install Composer dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
+      - name: Generate build info
+        run: |
+          echo "BUILD_ID=$(date +'%Y%m%d%H%M%S')-${GITHUB_SHA::8}" >> $GITHUB_ENV
+          mkdir -p build-info
+          echo "Build timestamp: $(date)" > build-info/build.txt
+          echo "Commit: ${{ github.sha }}" >> build-info/build.txt
+          echo "Branch: ${{ github.ref_name }}" >> build-info/build.txt
+
+      - name: Create deployment package
+        run: |
+          # Create a directory for the artifact
+          mkdir -p drupal-build
+
+          # Copy all files to the artifact directory, excluding development files
+          rsync -av --progress ./ drupal-build/ \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude="node_modules" \
+            --exclude=".gitignore" \
+            --exclude=".env.example" \
+            --exclude="README.md"
+
+          # Copy build info
+          cp build-info/build.txt drupal-build/
+
+          # Create a compressed archive for AWS deployment
+          tar -czf drupal-deploy-${{ env.BUILD_ID }}.tar.gz -C drupal-build .
+
+      - name: Store build as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: drupal-build-${{ env.BUILD_ID }}
+          path: drupal-build/
+          retention-days: 14
+
+      - name: Store deployment archive
+        uses: actions/upload-artifact@v4  # Updated to v4
+        with:
+          name: drupal-deploy-archive-${{ env.BUILD_ID }}
+          path: drupal-deploy-${{ env.BUILD_ID }}.tar.gz
+          retention-days: 14
+
+      - name: Build summary
+        run: |
+          echo "## 🚀 Drupal Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Attribute | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Build ID** | ${{ env.BUILD_ID }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Built from** | ${{ github.ref_name }} @ ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Complete Build**: drupal-build-${{ env.BUILD_ID }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployment Archive**: drupal-deploy-archive-${{ env.BUILD_ID }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp drupal-deploy-${{ env.BUILD_ID }}.tar.gz s3://cicd-drupal-deployment/drupal/
+          aws s3 cp build-info/build.txt s3://cicd-drupal-deployment/drupal/build-${{ env.BUILD_ID }}.txt
