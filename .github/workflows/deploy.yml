@@ -1,5 +1,5 @@
 # .github/workflows/main.yml
-name: Deploy (sandbox)
+name: Deploy
 
 on:
   workflow_dispatch:
