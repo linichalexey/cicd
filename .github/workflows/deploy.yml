@@ -129,22 +129,23 @@ jobs:
           restore-keys: |
             composer-after-build-${{ hashFiles('./composer.lock') }}
 
-  #      - name: Upload test results
-  #        uses: actions/upload-artifact@v3
-  #        with:
-  #          name: unit-test-results
-  #          path: test-results/
-  #          if-no-files-found: ignore
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
 
-  #      - name: Upload test results
-  #        uses: actions/upload-artifact@v3
-  #        with:
-  #          name: integration-test-results
-  #          path: integration-results/
-  #          if-no-files-found: ignore
+      - name: Setup test environment
+        run: echo "Setting up test environment"
+
+      - name: Run unit tests
+        run: |
+          echo "Pretend to run unit tests"
+          sleep 10
+
   build:
     name: Build Artifacts
-    needs: [ lint, audit ]
+    needs: [ lint, audit, unit-tests ]
     runs-on: ubuntu-latest
 
     steps:
