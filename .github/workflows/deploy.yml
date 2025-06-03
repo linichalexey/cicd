@@ -151,18 +151,48 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup build environment
-        run: |
-          echo "Setting up environment"
-          echo "Triggered by: ${{ github.event_name }}"
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, ctype, gd, opcache, mysql, zip
+          tools: composer:v2
 
-      - name: Display manual parameters
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          echo "Environment: ${{ github.event.inputs.environment }}"
+      - name: Cache composer
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-composer-modules
+        with:
+          # composer cache files are stored in ./vendor dir
+          path: ./vendor
+          key: composer-build-${{ hashFiles('./composer.lock') }}
+          restore-keys: |
+            composer-after-build-${{ hashFiles('./composer.lock') }}
+            composer-build-${{ hashFiles('./composer.lock') }}
 
-      - name: Build project
-        run: echo "Building the project"
+      - name: Install Composer dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction
+
+      - name: Generate build info
+        run: |
+          echo "BUILD_ID=$(date +'%Y%m%d%H%M%S')-${GITHUB_SHA::8}" >> $GITHUB_ENV
+          mkdir -p build-info
+          echo "Build timestamp: $(date)" > build-info/build.txt
+          echo "Commit: ${{ github.sha }}" >> build-info/build.txt
+          echo "Branch: ${{ github.ref_name }}" >> build-info/build.txt
+#
+#      - name: Setup build environment
+#        run: |
+#          echo "Setting up environment"
+#          echo "Triggered by: ${{ github.event_name }}"
+#
+#      - name: Display manual parameters
+#        if: github.event_name == 'workflow_dispatch'
+#        run: |
+#          echo "Environment: ${{ github.event.inputs.environment }}"
+#
+#      - name: Build project
+#        run: echo "Building the project"
 
 #      - name: Upload build artifacts
 #        uses: actions/upload-artifact@v3
