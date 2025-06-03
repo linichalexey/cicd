@@ -67,19 +67,67 @@ jobs:
           key: composer-after-build-${{ hashFiles('./composer.lock') }}
           restore-keys: |
             composer-after-build-${{ hashFiles('./composer.lock') }}
-  unit-tests:
-    name: Unit Tests
+  audit:
+    name: Composer audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup test environment
-        run: echo "Setting up test environment"
+      - name: Cache composer
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-composer-modules
+        with:
+          # composer cache files are stored in ./vendor dir
+          path: ./vendor
+          key: composer-build-${{ hashFiles('./composer.lock') }}
+          restore-keys: |
+            composer-after-build-${{ hashFiles('./composer.lock') }}
+            composer-build-${{ hashFiles('./composer.lock') }}
 
-      - name: Run unit tests
+      - name: Install dependencies
         run: |
-          echo "Running unit tests"
-          # Your unit test commands here
+          update-alternatives --list php
+          php --version
+          sudo update-alternatives --set php /usr/bin/php8.3
+          composer install --dev
+
+      - name: Run Audit
+        id: audit
+        env:
+          TEST_STATUS: 0
+        run: |
+          AUDIT_OUTPUT=$(composer audit 2>&1) || echo "TEST_STATUS=1" >> $GITHUB_ENV
+          echo "$AUDIT_OUTPUT"
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "result<<$EOF" >> $GITHUB_OUTPUT
+          echo "$AUDIT_OUTPUT" >> "$GITHUB_OUTPUT"
+          echo "$EOF" >> $GITHUB_OUTPUT
+
+      - name: "Audit status"
+        env:
+          TEST_STATUS: ${{ env.TEST_STATUS }}
+          AUDIT_OUTPUT: ${{ steps.audit.outputs.result }}
+          TEAMS_WEBHOOK_URL: ${{vars.TEAMS_WEBHOOK_URL}}
+        run: |
+          echo "Audit Output"
+          echo "$AUDIT_OUTPUT"
+          TEST_STATUS_TEXT="Needs Update"
+          OUTPUT="AUDIT \n\n $AUDIT_OUTPUT"
+          [[ $TEST_STATUS -eq 0 ]] && TEST_STATUS_TEXT="successful" && echo "TEST_STATUS_TEXT=successful"
+          echo "TEST_STATUS=$TEST_STATUS TEST_STATUS_TEXT=$TEST_STATUS_TEXT"
+          echo "TESTS Status $TEST_STATUS:$TEST_STATUS_TEXT!"
+
+      - name: Update Cache
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-composer-modules
+        with:
+          # composer cache files are stored in ./vendor dir
+          path: ./vendor
+          key: composer-after-build-${{ hashFiles('./composer.lock') }}
+          restore-keys: |
+            composer-after-build-${{ hashFiles('./composer.lock') }}
 
   #      - name: Upload test results
   #        uses: actions/upload-artifact@v3
@@ -87,19 +135,6 @@ jobs:
   #          name: unit-test-results
   #          path: test-results/
   #          if-no-files-found: ignore
-  integration-tests:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Setup integration test environment
-        run: echo "Setting up integration test environment"
-
-      - name: Run integration tests
-        run: |
-          echo "Running integration tests"
-          # Your integration test commands here
 
   #      - name: Upload test results
   #        uses: actions/upload-artifact@v3
@@ -109,7 +144,7 @@ jobs:
   #          if-no-files-found: ignore
   build:
     name: Build Artifacts
-    needs: [ lint, unit-tests, integration-tests ]
+    needs: [ lint, audit ]
     runs-on: ubuntu-latest
 
     steps:
