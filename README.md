@@ -6,6 +6,8 @@ A Drupal 11 project with Docker-based development environment and CI/CD pipeline
 
 This is a Drupal 11 project built using the `drupal/recommended-project` template with a relocated document root (`web/` directory). The project includes a complete Docker development environment for easy local development and deployment.
 
+<!-- Trigger deploy workflow -->
+
 ## 📋 Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/)
